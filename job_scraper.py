@@ -20,7 +20,7 @@ from tqdm import tqdm
 
 from job_boards import (
     IndeedBoard, LinkedInBoard, BuiltInBoard, WellFoundBoard,
-    RepVueBoard, HiredBoard, LeverBoard, GreenhouseBoard
+    ZipRecruiterBoard, WelcomeToTheJungleBoard, DirectCompanyBoard
 )
 
 # Configure logging
@@ -52,10 +52,9 @@ class JobAutoApply:
             "linkedin": LinkedInBoard(self.config, self.driver),
             "builtin": BuiltInBoard(self.config, self.driver),
             "wellfound": WellFoundBoard(self.config, self.driver),
-            "repvue": RepVueBoard(self.config, self.driver),
-            "hired": HiredBoard(self.config, self.driver),
-            "lever": LeverBoard(self.config, self.driver),
-            "greenhouse": GreenhouseBoard(self.config, self.driver)
+            "ziprecruiter": ZipRecruiterBoard(self.config, self.driver),
+            "welcome_to_the_jungle": WelcomeToTheJungleBoard(self.config, self.driver),
+            "direct_company": DirectCompanyBoard(self.config, self.driver)
         }
         
         # AI API key handling
