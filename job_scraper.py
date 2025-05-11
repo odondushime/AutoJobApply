@@ -17,6 +17,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from dotenv import load_dotenv
 import requests
 from tqdm import tqdm
+from fpdf import FPDF  # You'll need to install this: pip install fpdf
 
 from job_boards import (
     IndeedBoard, LinkedInBoard, BuiltInBoard, WellFoundBoard,
@@ -44,7 +45,7 @@ class JobAutoApply:
         self.config = self._load_config(config_file)
         self.driver = self._setup_webdriver()
         self.applications_db = self._load_applications_db()
-        self.applied_job_ids = set() if self.applications_db.empty else set(self.applications_db["job_id"])
+        self.applied_job_ids = set(self.applications_db["job_id"]) if not self.applications_db.empty else set()
         
         # Initialize job boards
         self.job_boards = {
@@ -145,7 +146,7 @@ class JobAutoApply:
             
         # Use existing Chrome profile
         if self.config.get("browser_settings", {}).get("use_existing_profile", False):
-            chrome_profile_path = os.path.expanduser(self.config["browser_settings"]["chrome_profile_path"])
+            chrome_profile_path = str(Path(self.config["browser_settings"]["chrome_profile_path"]).expanduser().resolve())
             chrome_options.add_argument(f"user-data-dir={chrome_profile_path}")
             chrome_options.add_argument("--profile-directory=Default")
             
@@ -178,6 +179,22 @@ class JobAutoApply:
         logger.info("Created new applications database.")
         return db
     
+    def save_cover_letter_as_pdf(self, content, filepath):
+        """Convert cover letter text to PDF format"""
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        
+        # Split content into lines that fit the page width
+        # FPDF uses mm for dimensions, roughly 190mm width available
+        lines = content.split('\n')
+        for line in lines:
+            # Handle long lines by wrapping
+            pdf.multi_cell(0, 10, line)
+        
+        pdf.output(filepath)
+        return filepath
+
     def generate_cover_letter(self, job_title, company, job_description=""):
         """Generate a cover letter dynamically using AI API."""
         if not self.ai_api_key:
@@ -217,10 +234,25 @@ class JobAutoApply:
                 json=data,
                 timeout=30
             )
-            response.raise_for_status()
-            cover_letter = response.json()["choices"][0]["message"]["content"]
+            
+            if response.status_code != 200:
+                logger.error(f"API error: {response.status_code} - {response.text}")
+                return None
+            
+            response_data = response.json()
+            if "choices" not in response_data or not response_data["choices"]:
+                logger.error("Invalid API response format")
+                return None
+            
+            cover_letter = response_data["choices"][0]["message"]["content"]
             return cover_letter
             
+        except requests.exceptions.Timeout:
+            logger.error("OpenAI API request timed out")
+            return None
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error: {e}")
+            return None
         except Exception as e:
             logger.error(f"Error generating cover letter: {e}")
             return None
@@ -290,7 +322,7 @@ class JobAutoApply:
                         logger.info(f"Generated cover letter saved to {temp_cover_letter_path}")
                 
                 # Apply to job
-                if board.apply_to_job(job):
+                if self.apply_to_job(job):
                     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     new_application = {
                         "job_id": job["job_id"],
@@ -329,6 +361,19 @@ class JobAutoApply:
                     time.sleep(sleep_time)
         
         logger.info(f"Finished applying to {applied_today} jobs today.")
+
+    def apply_to_job(self, job):
+        try:
+            result = board.apply_to_job(job)
+            if result:
+                logger.info(f"Successfully applied to {job['company']} - {job['job_title']}")
+                return True
+            else:
+                logger.warning(f"Failed to apply to {job['company']} - {job['job_title']}")
+                return False
+        except Exception as e:
+            logger.error(f"Error applying to {job['company']} - {job['job_title']}: {str(e)}")
+            return False
 
     def quit(self):
         """Properly close browser driver."""
