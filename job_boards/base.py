@@ -2,6 +2,7 @@
 Base class for job board scrapers and applications
 """
 import logging
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from selenium import webdriver
@@ -27,6 +28,49 @@ class JobBoardBase(ABC):
             logger.warning(f"Resume not found at {self.resume_path}")
         if not self.cover_letter_path.exists():
             logger.warning(f"Cover letter not found at {self.cover_letter_path}")
+    
+    def _get_config_value(self, path, default=None):
+        """Safely get a value from nested config dictionary"""
+        try:
+            value = self.config
+            for key in path.split('.'):
+                value = value[key]
+            return value
+        except (KeyError, TypeError):
+            return default
+    
+    def _detect_captcha(self):
+        """Check if a CAPTCHA is present on the page"""
+        captcha_indicators = [
+            "captcha", "recaptcha", "i'm not a robot", "verify you are human",
+            "security check", "verification required"
+        ]
+        
+        page_text = self.driver.page_source.lower()
+        
+        for indicator in captcha_indicators:
+            if indicator in page_text:
+                logger.warning(f"CAPTCHA detected: '{indicator}' found on page")
+                return True
+                
+        # Check for reCAPTCHA elements
+        try:
+            recaptcha_frames = self.driver.find_elements(By.CSS_SELECTOR, "iframe[src*='recaptcha']")
+            if recaptcha_frames:
+                logger.warning("reCAPTCHA iframe detected")
+                return True
+        except:
+            pass
+            
+        return False
+    
+    def _handle_captcha(self):
+        """Handle CAPTCHA detection"""
+        if self._detect_captcha():
+            logger.warning("CAPTCHA detected. Manual intervention required.")
+            input("Please solve the CAPTCHA and press Enter when ready...")
+            return True
+        return False
     
     @property
     @abstractmethod

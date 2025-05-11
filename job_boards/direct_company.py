@@ -17,71 +17,106 @@ class DirectCompanyBoard(JobBoardBase):
         return "direct_company"
     
     def login(self):
-        """No login required for direct company applications"""
+        """Login to direct company sites"""
+        # Most company sites don't require login for job searching
         return True
     
     def search_jobs(self, keywords, location):
         """Search for jobs on direct company websites"""
         jobs = []
-        try:
-            # List of company career URLs
-            company_urls = [
-                "https://careers.google.com/",
-                "https://www.amazon.jobs/",
-                "https://careers.microsoft.com/",
-                "https://careers.jpmorgan.com/",
-                "https://stripe.com/jobs",
-                "https://about.gitlab.com/jobs/",
-                "https://automattic.com/work-with-us/",
-                "https://zapier.com/jobs",
-                "https://jobs.cvshealth.com/",
-                "https://delta.avature.net/careers"
-            ]
-            
-            for url in company_urls:
-                self.driver.get(url)
-                time.sleep(3)  # Wait for page to load
+        
+        # Define company-specific search logic
+        companies = {
+            "google": {
+                "url": "https://careers.google.com/jobs/results/?distance=50&q=software",
+                "job_selector": "li.lLd3Je",
+                "title_selector": "h2.QJPWVe",
+                "location_selector": "span.r0wTof",
+                "link_selector": "a.WpHeLc",
+                "company_name": "Google"
+            },
+            "amazon": {
+                "url": "https://www.amazon.jobs/en/search?base_query=software&loc_query=United+States",
+                "job_selector": "div.job-tile",
+                "title_selector": "h3.job-title",
+                "location_selector": "p.location-and-id",
+                "link_selector": "a.job-link",
+                "company_name": "Amazon"
+            },
+            "microsoft": {
+                "url": "https://careers.microsoft.com/us/en/search-results?keywords=software",
+                "job_selector": "div.job-card",
+                "title_selector": "h2.job-title",
+                "location_selector": "span.job-location",
+                "link_selector": "a.job-link",
+                "company_name": "Microsoft"
+            },
+            "stripe": {
+                "url": "https://stripe.com/jobs/search?q=software",
+                "job_selector": "div.job-card",
+                "title_selector": "h3.job-title",
+                "location_selector": "span.job-location",
+                "link_selector": "a.job-link",
+                "company_name": "Stripe"
+            },
+            "gitlab": {
+                "url": "https://about.gitlab.com/jobs/all-jobs/",
+                "job_selector": "div.job-card",
+                "title_selector": "h3.job-title",
+                "location_selector": "span.job-location",
+                "link_selector": "a.job-link",
+                "company_name": "GitLab"
+            }
+        }
+        
+        for company_key, company_data in companies.items():
+            try:
+                logger.info(f"Searching jobs at {company_key}")
+                self.driver.get(company_data["url"])
                 
-                # Example: Find job listings on the page
-                # This is a placeholder and should be customized for each company's website
-                job_cards = self.driver.find_elements(By.CSS_SELECTOR, "div.job-card")
+                # Check for CAPTCHA
+                if self._handle_captcha():
+                    continue
                 
-                for job in job_cards:
+                time.sleep(5)  # Wait for page to load
+                
+                job_elements = self.driver.find_elements(By.CSS_SELECTOR, company_data["job_selector"])
+                
+                for job_element in job_elements[:5]:  # Limit to 5 jobs per company to avoid overloading
                     try:
-                        title_elem = job.find_element(By.CSS_SELECTOR, "h3.job-title")
-                        company_elem = job.find_element(By.CSS_SELECTOR, "div.company-name")
-                        location_elem = job.find_element(By.CSS_SELECTOR, "div.location")
-                        link_elem = job.find_element(By.CSS_SELECTOR, "a.job-link")
+                        title_elem = job_element.find_element(By.CSS_SELECTOR, company_data["title_selector"])
+                        location_elem = job_element.find_element(By.CSS_SELECTOR, company_data["location_selector"])
+                        link_elem = job_element.find_element(By.CSS_SELECTOR, company_data["link_selector"])
                         
                         job_data = {
                             "job_title": title_elem.text.strip(),
-                            "company": company_elem.text.strip(),
+                            "company": company_data["company_name"],
                             "location": location_elem.text.strip(),
                             "url": link_elem.get_attribute("href"),
-                            "job_board": self.board_name
+                            "job_board": f"{self.board_name}_{company_key}"
                         }
                         job_data["job_id"] = self._get_unique_job_id(job_data)
                         jobs.append(job_data)
-                        
-                    except NoSuchElementException:
-                        continue
                     except Exception as e:
-                        logger.error(f"Error parsing job: {e}")
-            
-        except Exception as e:
-            logger.error(f"Error searching jobs: {e}")
+                        logger.error(f"Error parsing {company_key} job: {e}")
+            except Exception as e:
+                logger.error(f"Error searching {company_key} jobs: {e}")
         
         return jobs
     
     def apply_to_job(self, job_data):
-        """Apply to a job on direct company websites"""
+        """Apply to a job on a direct company site"""
         try:
             self.driver.get(job_data["url"])
+            
+            # Check for CAPTCHA
+            if self._handle_captcha():
+                return False
             
             # Wait for and click Apply button
             apply_button = self._wait_for_clickable(
                 By.CSS_SELECTOR, 
-                "button.apply-button"
+                "button[type='submit'], button.apply-button, a.apply-button"
             )
             if not apply_button:
                 return False
@@ -93,19 +128,19 @@ class DirectCompanyBoard(JobBoardBase):
             # Fill out application form
             try:
                 # Fill name if required
-                name_field = self._wait_for_element(By.CSS_SELECTOR, "input[name='name']")
+                name_field = self._wait_for_element(By.CSS_SELECTOR, "input[name='name'], input[name='fullName']")
                 if name_field:
-                    name_field.send_keys(self.config["personal_info"]["name"])
+                    name_field.send_keys(self._get_config_value("personal_info.name", ""))
                 
                 # Fill email if required
-                email_field = self._wait_for_element(By.CSS_SELECTOR, "input[name='email']")
+                email_field = self._wait_for_element(By.CSS_SELECTOR, "input[name='email'], input[type='email']")
                 if email_field:
-                    email_field.send_keys(self.config["personal_info"]["email"])
+                    email_field.send_keys(self._get_config_value("personal_info.email", ""))
                 
                 # Fill phone if required
-                phone_field = self._wait_for_element(By.CSS_SELECTOR, "input[name='phone']")
+                phone_field = self._wait_for_element(By.CSS_SELECTOR, "input[name='phone'], input[name='telephone']")
                 if phone_field:
-                    phone_field.send_keys(self.config["personal_info"]["phone"])
+                    phone_field.send_keys(self._get_config_value("personal_info.phone", ""))
                 
                 # Upload resume if required
                 resume_upload = self._wait_for_element(By.CSS_SELECTOR, "input[type='file']")
@@ -113,7 +148,10 @@ class DirectCompanyBoard(JobBoardBase):
                     resume_upload.send_keys(str(self.resume_path.absolute()))
                 
                 # Submit application
-                submit_button = self._wait_for_clickable(By.CSS_SELECTOR, "button[type='submit']")
+                submit_button = self._wait_for_clickable(
+                    By.CSS_SELECTOR,
+                    "button[type='submit'], button.submit-button, input[type='submit']"
+                )
                 if submit_button:
                     submit_button.click()
                     time.sleep(3)
@@ -124,5 +162,5 @@ class DirectCompanyBoard(JobBoardBase):
                 return False
                 
         except Exception as e:
-            logger.error(f"Error during application: {e}")
+            logger.error(f"Error during direct company application: {e}")
             return False 

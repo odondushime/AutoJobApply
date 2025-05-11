@@ -17,66 +17,82 @@ class IndeedBoard(JobBoardBase):
         return "indeed"
     
     def login(self):
-        """Login to Indeed using Google account"""
-        if not self.credentials.get("email") or not self.credentials.get("password"):
-            logger.warning("No Indeed credentials found")
-            return False
-        
+        """Login to Indeed"""
         try:
-            self.driver.get("https://www.indeed.com/login")
-            time.sleep(5)  # Wait for page to load
+            self.driver.get("https://www.indeed.com/account/login")
+            time.sleep(2)
             
-            # Click on Google login button
-            google_login_button = self._wait_for_clickable(By.CSS_SELECTOR, "button.google-login-button")
-            if not google_login_button:
+            # Check for CAPTCHA
+            if self._handle_captcha():
                 return False
-            google_login_button.click()
             
-            # Wait for Google login page
-            time.sleep(5)
+            # Try to find and click the Google login button
+            google_button = self._wait_for_clickable(
+                By.CSS_SELECTOR,
+                "button[data-tn-element='google-login-button']"
+            )
+            if google_button:
+                google_button.click()
+                time.sleep(2)
+                
+                # Handle Google login
+                email_field = self._wait_for_element(
+                    By.CSS_SELECTOR,
+                    "input[type='email']"
+                )
+                if email_field:
+                    email_field.send_keys(self.credentials.get("email", ""))
+                    next_button = self._wait_for_clickable(
+                        By.CSS_SELECTOR,
+                        "button[type='submit']"
+                    )
+                    if next_button:
+                        next_button.click()
+                        time.sleep(2)
+                        
+                        # Wait for password field
+                        password_field = self._wait_for_element(
+                            By.CSS_SELECTOR,
+                            "input[type='password']"
+                        )
+                        if password_field:
+                            password_field.send_keys(self.credentials.get("password", ""))
+                            submit_button = self._wait_for_clickable(
+                                By.CSS_SELECTOR,
+                                "button[type='submit']"
+                            )
+                            if submit_button:
+                                submit_button.click()
+                                time.sleep(3)
+                                return True
             
-            # Fill in Google email
-            google_email_field = self._wait_for_element(By.CSS_SELECTOR, "input[type='email']")
-            if not google_email_field:
-                return False
-            google_email_field.send_keys(self.credentials["email"])
-            
-            # Click next
-            next_button = self._wait_for_clickable(By.CSS_SELECTOR, "button.next-button")
-            if not next_button:
-                return False
-            next_button.click()
-            
-            # Wait for password field
-            time.sleep(5)
-            
-            # Fill in Google password
-            google_password_field = self._wait_for_element(By.CSS_SELECTOR, "input[type='password']")
-            if not google_password_field:
-                return False
-            google_password_field.send_keys(self.credentials["password"])
-            
-            # Click sign in
-            signin_button = self._wait_for_clickable(By.CSS_SELECTOR, "button.signin-button")
-            if not signin_button:
-                return False
-            signin_button.click()
-            
-            # Wait for successful login
-            time.sleep(5)
-            return "Sign Out" in self.driver.page_source
+            return False
             
         except Exception as e:
-            logger.error(f"Error logging in to Indeed: {e}")
+            logger.error(f"Error during Indeed login: {e}")
             return False
     
     def search_jobs(self, keywords, location):
         """Search for jobs on Indeed"""
         jobs = []
         try:
+            # Format keywords for URL
+            if isinstance(keywords, list):
+                keyword_str = "+".join(keywords)
+            else:
+                keyword_str = keywords
+                
+            # Format location for URL
+            location_str = location.replace(" ", "+") if location else "remote"
+            
             # Build search URL
-            search_url = f"https://www.indeed.com/jobs?q={keywords}&l={location}"
+            search_url = f"https://www.indeed.com/jobs?q={keyword_str}&l={location_str}"
+            logger.info(f"Searching Indeed with URL: {search_url}")
             self.driver.get(search_url)
+            
+            # Check for CAPTCHA
+            if self._handle_captcha():
+                return jobs
             
             # Wait for job listings to load
             time.sleep(3)
@@ -86,15 +102,16 @@ class IndeedBoard(JobBoardBase):
             
             for job in job_cards:
                 try:
-                    title_elem = job.find_element(By.CSS_SELECTOR, "h2.jobTitle a")
+                    title_elem = job.find_element(By.CSS_SELECTOR, "h2.jobTitle")
                     company_elem = job.find_element(By.CSS_SELECTOR, "span.companyName")
                     location_elem = job.find_element(By.CSS_SELECTOR, "div.companyLocation")
+                    link_elem = job.find_element(By.CSS_SELECTOR, "a.jcs-JobTitle")
                     
                     job_data = {
                         "job_title": title_elem.text.strip(),
                         "company": company_elem.text.strip(),
                         "location": location_elem.text.strip(),
-                        "url": title_elem.get_attribute("href"),
+                        "url": link_elem.get_attribute("href"),
                         "job_board": self.board_name
                     }
                     job_data["job_id"] = self._get_unique_job_id(job_data)
@@ -115,6 +132,10 @@ class IndeedBoard(JobBoardBase):
         try:
             self.driver.get(job_data["url"])
             
+            # Check for CAPTCHA
+            if self._handle_captcha():
+                return False
+            
             # Wait for and click Apply button
             apply_button = self._wait_for_clickable(
                 By.CSS_SELECTOR, 
@@ -132,17 +153,12 @@ class IndeedBoard(JobBoardBase):
                 # Fill name if required
                 name_field = self._wait_for_element(By.CSS_SELECTOR, "input[name='name']")
                 if name_field:
-                    name_field.send_keys(self.config["personal_info"]["name"])
+                    name_field.send_keys(self._get_config_value("personal_info.name", ""))
                 
                 # Fill email if required
                 email_field = self._wait_for_element(By.CSS_SELECTOR, "input[name='email']")
                 if email_field:
-                    email_field.send_keys(self.config["personal_info"]["email"])
-                
-                # Fill phone if required
-                phone_field = self._wait_for_element(By.CSS_SELECTOR, "input[name='phone']")
-                if phone_field:
-                    phone_field.send_keys(self.config["personal_info"]["phone"])
+                    email_field.send_keys(self.credentials.get("email", ""))
                 
                 # Upload resume if required
                 resume_upload = self._wait_for_element(By.CSS_SELECTOR, "input[type='file']")
