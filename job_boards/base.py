@@ -21,6 +21,12 @@ class JobBoardBase(ABC):
         self.resume_path = Path(config.get("resume_path", "resume.pdf"))
         self.cover_letter_path = Path(config.get("cover_letter_path", "cover_letter.pdf"))
         self.credentials = config.get("credentials", {}).get(self.board_name, {})
+        
+        # Verify paths exist
+        if not self.resume_path.exists():
+            logger.warning(f"Resume not found at {self.resume_path}")
+        if not self.cover_letter_path.exists():
+            logger.warning(f"Cover letter not found at {self.cover_letter_path}")
     
     @property
     @abstractmethod

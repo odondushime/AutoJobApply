@@ -13,7 +13,8 @@
     "education": "General Assembly Bootcamp (8 months)",
     "desired_salary": "80000-100000",
     "location": "Grand Rapids, MI",
-    "resume_path": "resumes/resume.pdf"
+    "resume_path": "resumes/resume.pdf",
+    "portfolio": "https://yourportfolio.com"
   },
   "job_search": {
     "keywords": [

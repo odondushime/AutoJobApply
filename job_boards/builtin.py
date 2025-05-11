@@ -25,8 +25,27 @@ class BuiltInBoard(JobBoardBase):
         """Search for jobs on BuiltIn"""
         jobs = []
         try:
+            # Process keywords for URL
+            keyword_str = "developer"  # Default fallback
+            if isinstance(keywords, list) and keywords:
+                # Try to use the first keyword that's developer-related
+                dev_keywords = ["developer", "engineer", "software", "coding", "programmer"]
+                for kw in keywords:
+                    if any(dev in kw.lower() for dev in dev_keywords):
+                        keyword_str = kw.replace(" ", "-").lower()
+                        break
+            
+            # Process location for URL
+            location_str = ""
+            if location and location.lower() != "remote":
+                location_parts = location.split(",")
+                if len(location_parts) > 0:
+                    city = location_parts[0].strip().replace(" ", "-").lower()
+                    location_str = f"/{city}"
+            
             # Build search URL
-            search_url = f"https://builtin.com/jobs/sales"
+            search_url = f"https://builtin.com/jobs{location_str}/{keyword_str}"
+            logger.info(f"Searching BuiltIn with URL: {search_url}")
             self.driver.get(search_url)
             
             # Wait for job listings to load
@@ -84,7 +103,7 @@ class BuiltInBoard(JobBoardBase):
                 # Fill name if required
                 name_field = self._wait_for_element(By.CSS_SELECTOR, "input[name='name']")
                 if name_field:
-                    name_field.send_keys("Your Name")
+                    name_field.send_keys(self.config.get("personal_info", {}).get("name", ""))
                 
                 # Fill email if required
                 email_field = self._wait_for_element(By.CSS_SELECTOR, "input[name='email']")
@@ -109,4 +128,20 @@ class BuiltInBoard(JobBoardBase):
                 
         except Exception as e:
             logger.error(f"Error during BuiltIn application: {e}")
-            return False 
+            return False
+
+    def _safe_click(self, element, timeout=3):
+        """Safely click an element with retry logic"""
+        if not element:
+            return False
+        
+        max_retries = 3
+        for i in range(max_retries):
+            try:
+                element.click()
+                return True
+            except Exception as e:
+                if i == max_retries - 1:
+                    logger.error(f"Failed to click element after {max_retries} tries: {e}")
+                    return False
+                time.sleep(1) 
