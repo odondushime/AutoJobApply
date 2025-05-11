@@ -1,0 +1,171 @@
+{
+  "personal_info": {
+    "name": "Odon Dushime",
+    "email": "odondushime@gmail.com",
+    "phone": "616-308-0000",
+    "address": "5835 Clear Stream Dr SE",
+    "city": "Grand Rapids",
+    "state": "MI",
+    "zip": "49503",
+    "linkedin": "https://www.linkedin.com/in/odon-dushime-276b9b271/",
+    "github": "https://github.com/odondushime",
+    "years_of_experience": "1",
+    "education": "General Assembly Bootcamp (8 months)",
+    "desired_salary": "80000-100000",
+    "location": "Grand Rapids, MI",
+    "resume_path": "resumes/resume.pdf"
+  },
+  "job_search": {
+    "keywords": [
+      "Software Developer",
+      "Software Engineer",
+      "Backend Developer",
+      "Frontend Developer",
+      "Full Stack Developer",
+      "Web Developer",
+      "Application Developer",
+      "Cloud Engineer",
+      "API Developer",
+      "tech sales",
+      "software sales",
+      "SaaS sales"
+    ],
+    "location": "Grand Rapids, MI",
+    "radius": "50",
+    "job_type": "full-time",
+    "experience_level": "entry-level",
+    "remote": true,
+    "min_salary": 80000,
+    "exclude_keywords": ["Senior", "Principal", "Lead", "Architect", "Manager"],
+    "max_jobs_per_day": 50
+  },
+  "application_settings": {
+    "max_applications_per_day": 50,
+    "min_delay_between_applications": 30,
+    "max_delay_between_applications": 120,
+    "auto_fill_personal_info": true,
+    "auto_upload_resume": true,
+    "auto_write_cover_letters": true,
+    "cover_letter_template": "templates/cover_letter.txt",
+    "delay_between_applications": {
+      "min_seconds": 3,
+      "max_seconds": 7
+    }
+  },
+  "job_boards": {
+    "indeed": {
+      "enabled": true,
+      "email": "odondushime@gmail.com",
+      "password": ""
+    },
+    "linkedin": {
+      "enabled": true,
+      "email": "odondushime@gmail.com",
+      "password": ""
+    },
+    "wellfound": {
+      "enabled": true,
+      "email": "odondushime@gmail.com",
+      "password": ""
+    },
+    "ziprecruiter": {
+      "enabled": true,
+      "email": "odondushime@gmail.com",
+      "password": ""
+    },
+    "welcome_to_the_jungle": {
+      "enabled": true,
+      "email": "odondushime@gmail.com",
+      "password": ""
+    },
+    "direct_company": {
+      "enabled": true,
+      "companies": [
+        {
+          "name": "Google",
+          "url": "https://careers.google.com/jobs/results/?location=Grand%20Rapids%2C%20MI%2C%20USA",
+          "type": "remote"
+        },
+        {
+          "name": "Amazon",
+          "url": "https://www.amazon.jobs/en/locations/grand-rapids-michigan",
+          "type": "hybrid"
+        },
+        {
+          "name": "Microsoft",
+          "url": "https://careers.microsoft.com/us/en/search-results?keywords=Grand%20Rapids",
+          "type": "remote"
+        },
+        {
+          "name": "JPMorgan Chase",
+          "url": "https://careers.jpmorgan.com/us/en/search-results?keywords=Grand%20Rapids",
+          "type": "hybrid"
+        },
+        {
+          "name": "Stripe",
+          "url": "https://stripe.com/jobs/search?q=Grand%20Rapids",
+          "type": "remote"
+        },
+        {
+          "name": "GitLab",
+          "url": "https://about.gitlab.com/jobs/all-jobs/?location=Grand%20Rapids",
+          "type": "remote"
+        },
+        {
+          "name": "Automattic",
+          "url": "https://automattic.com/work-with-us/",
+          "type": "remote"
+        },
+        {
+          "name": "Zapier",
+          "url": "https://zapier.com/jobs/",
+          "type": "remote"
+        },
+        {
+          "name": "CVS Health",
+          "url": "https://jobs.cvshealth.com/search-jobs/Grand%20Rapids%2C%20MI/1205/1/4/6252001-6252002/31x79/-96x90/50/2",
+          "type": "hybrid"
+        },
+        {
+          "name": "Delta Airlines",
+          "url": "https://delta.avature.net/careers/SearchJobs/?524=524&524_format=523&listFilterMode=1&folderRecordsPerPage=15&",
+          "type": "onsite"
+        }
+      ]
+    }
+  },
+  "enabled_job_boards": ["linkedin"],
+  "resume_path": "resumes/resume.pdf",
+  "cover_letter_path": "cover_letters/cover_letter.pdf",
+  "use_cover_letter": true,
+  "apply_limit_per_day": 50,
+  "blacklisted_companies": [],
+  "auto_generate_cover_letter": true,
+  "headless": false,
+  "application_delay": {
+    "min_seconds": 3,
+    "max_seconds": 7
+  },
+  "cover_letter": {
+    "enabled": true,
+    "template": "cover_letters/cover_letter.txt"
+  },
+  "selenium": {
+    "headless": false,
+    "timeout": 30
+  },
+  "browser_settings": {
+    "headless": false,
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "page_load_timeout": 30,
+    "implicit_wait": 10,
+    "use_existing_profile": true,
+    "chrome_profile_path": "~/Library/Application Support/Google/Chrome/Default"
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "job_application.log",
+    "max_file_size": 10485760,
+    "backup_count": 5
+  }
+}

@@ -1,0 +1,9 @@
+venv/
+*.log
+.env
+__pycache__/
+*.pyc
+applications_db.csv
+resumes/*.pdf
+.idea/
+.DS_Store 
