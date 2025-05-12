@@ -17,82 +17,109 @@ class LinkedInBoard(JobBoardBase):
         return "linkedin"
     
     def login(self):
-        """Login to LinkedIn using Google account"""
-        if not self.credentials.get("email") or not self.credentials.get("password"):
-            logger.warning("No LinkedIn credentials found")
-            return False
-        
+        """Login to LinkedIn"""
         try:
             self.driver.get("https://www.linkedin.com/login")
-            time.sleep(5)  # Wait for page to load
+            time.sleep(2)
             
-            # Click on Google login button
-            google_login_button = self._wait_for_clickable(By.CSS_SELECTOR, "button.google-login-button")
-            if not google_login_button:
+            # Check for CAPTCHA
+            if self._handle_captcha():
                 return False
-            google_login_button.click()
             
-            # Wait for Google login page
-            time.sleep(5)
-            
-            # Fill in Google email
-            google_email_field = self._wait_for_element(By.CSS_SELECTOR, "input[type='email']")
-            if not google_email_field:
+            # Fill in email
+            email_field = self._wait_for_element(By.CSS_SELECTOR, "input#username")
+            if not email_field:
+                logger.error("Could not find email field")
                 return False
-            google_email_field.send_keys(self.credentials["email"])
+            email_field.send_keys(self.credentials.get("email", ""))
             
-            # Click next
-            next_button = self._wait_for_clickable(By.CSS_SELECTOR, "button.next-button")
-            if not next_button:
+            # Fill in password
+            password_field = self._wait_for_element(By.CSS_SELECTOR, "input#password")
+            if not password_field:
+                logger.error("Could not find password field")
                 return False
-            next_button.click()
-            
-            # Wait for password field
-            time.sleep(5)
-            
-            # Fill in Google password
-            google_password_field = self._wait_for_element(By.CSS_SELECTOR, "input[type='password']")
-            if not google_password_field:
-                return False
-            google_password_field.send_keys(self.credentials["password"])
+            password_field.send_keys(self.credentials.get("password", ""))
             
             # Click sign in
-            signin_button = self._wait_for_clickable(By.CSS_SELECTOR, "button.signin-button")
-            if not signin_button:
+            sign_in_button = self._wait_for_clickable(By.CSS_SELECTOR, "button[type='submit']")
+            if not sign_in_button:
+                logger.error("Could not find sign in button")
                 return False
-            signin_button.click()
+            sign_in_button.click()
             
-            # Wait for successful login
+            # Wait for login to complete
             time.sleep(5)
-            return "Sign Out" in self.driver.page_source
             
+            # Check if login was successful
+            if "feed" in self.driver.current_url or "mynetwork" in self.driver.current_url:
+                logger.info("Successfully logged in to LinkedIn")
+                return True
+            else:
+                logger.error("Login failed - not redirected to feed")
+                return False
+                
         except Exception as e:
-            logger.error(f"Error logging in to LinkedIn: {e}")
+            logger.error(f"Error during LinkedIn login: {e}")
             return False
     
     def search_jobs(self, keywords, location):
         """Search for jobs on LinkedIn"""
         jobs = []
         try:
-            # Build search URL
-            search_url = f"https://www.linkedin.com/jobs/search/?keywords={keywords}&location={location}"
+            # Format keywords for URL
+            if isinstance(keywords, list):
+                keyword_str = "%20".join(keywords)
+            else:
+                keyword_str = keywords.replace(" ", "%20")
+            
+            # Format location for URL
+            location_str = location.replace(" ", "%20") if location else "remote"
+            
+            # Build search URL with filters
+            search_url = f"https://www.linkedin.com/jobs/search/?keywords={keyword_str}&location={location_str}"
+            
+            # Add filters from config
+            filters = []
+            if self._get_config_value("job_search.remote_only", False):
+                filters.append("f_WT=2")  # Remote filter
+            if self._get_config_value("job_search.experience_level", "entry"):
+                filters.append("f_E=1")  # Entry level filter
+            
+            if filters:
+                search_url += "&" + "&".join(filters)
+            
+            logger.info(f"Searching LinkedIn with URL: {search_url}")
             self.driver.get(search_url)
             
+            # Check for CAPTCHA
+            if self._handle_captcha():
+                return jobs
+            
             # Wait for job listings to load
-            time.sleep(3)
+            time.sleep(5)
+            
+            # Get exclude keywords from config
+            exclude_keywords = self._get_config_value("job_search.exclude_keywords", ["senior", "lead", "principal"])
             
             # Find all job cards
             job_cards = self.driver.find_elements(By.CSS_SELECTOR, "div.job-card-container")
             
-            for job in job_cards:
+            for job in job_cards[:20]:  # Limit to 20 jobs
                 try:
                     title_elem = job.find_element(By.CSS_SELECTOR, "h3.base-search-card__title")
                     company_elem = job.find_element(By.CSS_SELECTOR, "h4.base-search-card__subtitle")
                     location_elem = job.find_element(By.CSS_SELECTOR, "span.job-search-card__location")
                     link_elem = job.find_element(By.CSS_SELECTOR, "a.base-card__full-link")
                     
+                    job_title = title_elem.text.strip()
+                    
+                    # Skip senior/lead positions
+                    if any(keyword.lower() in job_title.lower() for keyword in exclude_keywords):
+                        logger.info(f"Skipping senior/lead position: {job_title}")
+                        continue
+                    
                     job_data = {
-                        "job_title": title_elem.text.strip(),
+                        "job_title": job_title,
                         "company": company_elem.text.strip(),
                         "location": location_elem.text.strip(),
                         "url": link_elem.get_attribute("href"),
@@ -114,58 +141,106 @@ class LinkedInBoard(JobBoardBase):
     def apply_to_job(self, job_data):
         """Apply to a job on LinkedIn"""
         try:
+            logger.info(f"Applying to {job_data['company']} - {job_data['job_title']}")
             self.driver.get(job_data["url"])
             
-            # Wait for and click Easy Apply button
+            # Check for CAPTCHA
+            if self._handle_captcha():
+                return False
+            
+            # Wait for and click Apply button
             apply_button = self._wait_for_clickable(
                 By.CSS_SELECTOR, 
                 "button.jobs-apply-button"
             )
             if not apply_button:
+                logger.warning("Could not find apply button")
                 return False
             apply_button.click()
             
-            # Wait for application dialog
+            # Wait for application form
             time.sleep(2)
             
-            # Handle LinkedIn Easy Apply process
-            try:
-                # Fill out required fields
-                # Note: LinkedIn's Easy Apply form fields can vary significantly
-                # This is a basic implementation that may need to be customized
-                
-                # Look for common form fields
-                form_fields = self.driver.find_elements(By.CSS_SELECTOR, "input[type='text']")
-                for field in form_fields:
-                    try:
-                        field_id = field.get_attribute("id")
-                        if "name" in field_id.lower():
-                            field.send_keys(self.config["personal_info"]["name"])
-                        elif "email" in field_id.lower():
-                            field.send_keys(self.config["personal_info"]["email"])
-                        elif "phone" in field_id.lower():
-                            field.send_keys(self.config["personal_info"]["phone"])
-                    except:
-                        continue
-                
-                # Upload resume if required
-                resume_upload = self._wait_for_element(By.CSS_SELECTOR, "input[type='file']")
+            # Get personal info from config
+            name = self._get_config_value("personal_info.name", "")
+            email = self._get_config_value("personal_info.email", "")
+            phone = self._get_config_value("personal_info.phone", "")
+            
+            # Fill out application form
+            form_filled = False
+            
+            # Try to fill name fields
+            for name_selector in ["input[name='name']", "input[name='full_name']", "input[id*='name']"]:
+                name_field = self._wait_for_element(By.CSS_SELECTOR, name_selector, timeout=2)
+                if name_field:
+                    name_field.clear()
+                    name_field.send_keys(name)
+                    form_filled = True
+                    break
+            
+            # Try to fill email fields
+            for email_selector in ["input[name='email']", "input[type='email']", "input[id*='email']"]:
+                email_field = self._wait_for_element(By.CSS_SELECTOR, email_selector, timeout=2)
+                if email_field:
+                    email_field.clear()
+                    email_field.send_keys(email)
+                    form_filled = True
+                    break
+            
+            # Try to fill phone fields
+            for phone_selector in ["input[name='phone']", "input[type='tel']", "input[id*='phone']"]:
+                phone_field = self._wait_for_element(By.CSS_SELECTOR, phone_selector, timeout=2)
+                if phone_field:
+                    phone_field.clear()
+                    phone_field.send_keys(phone)
+                    form_filled = True
+                    break
+            
+            # Upload resume
+            for resume_selector in ["input[type='file']", "input[name='resume']", "input[accept='.pdf']"]:
+                resume_upload = self._wait_for_element(By.CSS_SELECTOR, resume_selector, timeout=2)
                 if resume_upload:
                     resume_upload.send_keys(str(self.resume_path.absolute()))
-                
-                # Submit application
-                submit_button = self._wait_for_clickable(
-                    By.CSS_SELECTOR, 
-                    "button.jobs-apply-button"
-                )
+                    form_filled = True
+                    logger.info("Uploaded resume")
+                    break
+            
+            # Upload cover letter if configured
+            if self._get_config_value("use_cover_letter", True):
+                for cl_selector in ["input[name='cover_letter']", "input[name='coverLetter']", 
+                                  "input[type='file']:not([name='resume'])"]:
+                    cl_upload = self._wait_for_element(By.CSS_SELECTOR, cl_selector, timeout=2)
+                    if cl_upload:
+                        cl_upload.send_keys(str(self.cover_letter_path.absolute()))
+                        logger.info("Uploaded cover letter")
+                        break
+            
+            if not form_filled:
+                logger.warning("Could not fill out any form fields")
+                return False
+            
+            # Try to submit the form
+            for submit_selector in ["button[type='submit']", "input[type='submit']", 
+                                  "button.submit-app-btn", "button:contains('Submit')"]:
+                submit_button = self._wait_for_clickable(By.CSS_SELECTOR, submit_selector, timeout=2)
                 if submit_button:
                     submit_button.click()
-                    time.sleep(3)
+                    time.sleep(5)
+                    
+                    # Check for confirmation
+                    confirmation_texts = ["thank you", "application received", "application submitted"]
+                    page_text = self.driver.page_source.lower()
+                    
+                    for text in confirmation_texts:
+                        if text in page_text:
+                            logger.info(f"Application confirmed: '{text}' found on page")
+                            return True
+                    
+                    logger.info("Form submitted, no explicit confirmation found")
                     return True
-                
-            except NoSuchElementException:
-                logger.warning("Could not find expected form elements on LinkedIn")
-                return False
+            
+            logger.warning("Could not find submit button")
+            return False
                 
         except Exception as e:
             logger.error(f"Error during LinkedIn application: {e}")
