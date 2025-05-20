@@ -1,10 +1,11 @@
-selenium>=4.15.2
-webdriver-manager>=4.0.1
+selenium==4.15.2
+webdriver-manager==4.0.1
 pandas>=2.1.3
-python-dotenv>=1.0.0
+python-dotenv==1.0.0
 requests>=2.31.0
-openai>=1.3.0  # For AI-powered cover letter generation
+openai==1.3.5  # For AI-powered cover letter generation
 beautifulsoup4>=4.12.2  # For parsing job listings
 lxml>=4.9.3  # For faster HTML parsing
-tqdm>=4.66.1  # For progress bars
-python-dateutil>=2.8.2  # For date handling 
+tqdm==4.66.1  # For progress bars
+python-dateutil>=2.8.2  # For date handling
+fpdf==1.7.2 

@@ -18,25 +18,48 @@ from dotenv import load_dotenv
 import requests
 from tqdm import tqdm
 from fpdf import FPDF  # You'll need to install this: pip install fpdf
+import argparse
 
 from job_boards import (
     IndeedBoard, LinkedInBoard, BuiltInBoard, WellFoundBoard,
     ZipRecruiterBoard, WelcomeToTheJungleBoard, DirectCompanyBoard
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("jobautoapply.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
-
 # Load environment variables
 load_dotenv()
+
+def setup_logging():
+    """Setup logging configuration"""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler('job_application.log'),
+            logging.StreamHandler()
+        ]
+    )
+
+def load_config():
+    """Load and process configuration"""
+    config_path = Path("config.json")
+    if not config_path.exists():
+        raise FileNotFoundError("config.json not found")
+    
+    with open(config_path) as f:
+        config = json.load(f)
+    
+    # Replace environment variables in config
+    def replace_env_vars(obj):
+        if isinstance(obj, dict):
+            return {k: replace_env_vars(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [replace_env_vars(item) for item in obj]
+        elif isinstance(obj, str) and obj.startswith("${") and obj.endswith("}"):
+            env_var = obj[2:-1]
+            return os.getenv(env_var, "")
+        return obj
+    
+    return replace_env_vars(config)
 
 class JobAutoApply:
     """Main class for automated job applications with AI support"""
@@ -381,16 +404,69 @@ class JobAutoApply:
             logger.info("Quitting WebDriver.")
             self.driver.quit()
 
+def main():
+    """Main function"""
+    parser = argparse.ArgumentParser(description="Automated job application script")
+    parser.add_argument("--board", help="Specific job board to use", default=None)
+    args = parser.parse_args()
+    
+    setup_logging()
+    logger = logging.getLogger(__name__)
+    
+    try:
+        config = load_config()
+        logger.info("Configuration loaded successfully")
+        
+        # Initialize job boards
+        boards = {
+            "linkedin": LinkedInBoard(config),
+            "welcome_to_the_jungle": WelcomeToTheJungleBoard(config),
+            "wellfound": WellFoundBoard(config),
+            "ziprecruiter": ZipRecruiterBoard(config),
+            "builtin": BuiltInBoard(config)
+        }
+        
+        # Run specific board or all enabled boards
+        if args.board:
+            if args.board not in boards:
+                logger.error(f"Unknown job board: {args.board}")
+                return
+            boards_to_run = [args.board]
+        else:
+            boards_to_run = [name for name, board in boards.items() 
+                           if config["job_boards"][name]["enabled"]]
+        
+        for board_name in boards_to_run:
+            try:
+                logger.info(f"Processing {board_name}")
+                board = boards[board_name]
+                
+                # Login
+                if not board.login():
+                    logger.error(f"Failed to login to {board_name}")
+                    continue
+                
+                # Search and apply
+                jobs = board.search_jobs(
+                    config["job_search"]["keywords"],
+                    config["job_search"]["location"]
+                )
+                
+                for job in jobs:
+                    try:
+                        if board.apply_to_job(job):
+                            logger.info(f"Successfully applied to {job['company']} - {job['job_title']}")
+                        else:
+                            logger.warning(f"Failed to apply to {job['company']} - {job['job_title']}")
+                    except Exception as e:
+                        logger.error(f"Error applying to job: {e}")
+                
+            except Exception as e:
+                logger.error(f"Error processing {board_name}: {e}")
+                continue
+            
+    except Exception as e:
+        logger.error(f"Error in main process: {e}")
 
 if __name__ == "__main__":
-    try:
-        app = JobAutoApply()
-        app.apply_to_jobs()
-    except KeyboardInterrupt:
-        logger.warning("Process interrupted by user.")
-    except Exception as e:
-        logger.error(f"Fatal error: {e}", exc_info=True)
-    finally:
-        # Make sure to quit the driver
-        if 'app' in locals():
-            app.quit()
+    main()
