@@ -1,20 +1,19 @@
 {
   "personal_info": {
     "name": "Odon Dushime",
-    "email": "odondushime@gmail.com",
-    "phone": "616-308-0000",
+    "email": "dushimeodon14@gmail.com",
+    "phone": "616-259-3207",
     "address": "5835 Clear Stream Dr SE",
     "city": "Grand Rapids",
     "state": "MI",
-    "zip": "49503",
+    "zip": "49548",
     "linkedin": "https://www.linkedin.com/in/odon-dushime-276b9b271/",
     "github": "https://github.com/odondushime",
-    "years_of_experience": "1",
+    "years_of_experience": "3",
     "education": "General Assembly Bootcamp (8 months)",
     "desired_salary": "80000-100000",
     "location": "Grand Rapids, MI",
-    "resume_path": "resumes/resume.pdf",
-    "portfolio": "https://yourportfolio.com"
+    "resume_path": "resumes/resume.pdf"
   },
   "job_search": {
     "keywords": [
@@ -56,27 +55,27 @@
   "job_boards": {
     "indeed": {
       "enabled": true,
-      "email": "odondushime@gmail.com",
-      "password": ""
+      "email": "dushimeodon14@gmail.com",
+      "password": "myJesus100%"
     },
     "linkedin": {
       "enabled": true,
-      "email": "odondushime@gmail.com",
+      "email": "dushimeodon14@gmail.com",
       "password": ""
     },
     "wellfound": {
       "enabled": true,
-      "email": "odondushime@gmail.com",
+      "email": "dushimeodon14@gmail.com",
       "password": ""
     },
     "ziprecruiter": {
       "enabled": true,
-      "email": "odondushime@gmail.com",
+      "email": "dushimeodon14@gmail.com",
       "password": ""
     },
     "welcome_to_the_jungle": {
       "enabled": true,
-      "email": "odondushime@gmail.com",
+      "email": "dushimeodon14@gmail.com",
       "password": ""
     },
     "direct_company": {
