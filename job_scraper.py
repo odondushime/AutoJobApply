@@ -1,53 +1,60 @@
-"""
-JobAutoApply - Automated Job Application Script with AI Integration
-Supports software developer and tech sales jobs, including Grand Rapids, MI
-"""
-import os
-import time
+#!/usr/bin/env python3
 import json
-import random
 import logging
+import os
+import sys
+import time
 from datetime import datetime
+import argparse
 from pathlib import Path
-import pandas as pd
+from dotenv import load_dotenv
+
+# Selenium imports
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
-from dotenv import load_dotenv
-import requests
-from tqdm import tqdm
-from fpdf import FPDF  # You'll need to install this: pip install fpdf
-import argparse
 
-from job_boards import (
-    IndeedBoard, LinkedInBoard, BuiltInBoard, WellFoundBoard,
-    ZipRecruiterBoard, WelcomeToTheJungleBoard, DirectCompanyBoard
-)
+# Import job board modules
+from job_boards.linkedin import LinkedInBoard
+from job_boards.indeed import IndeedBoard
+from job_boards.builtin import BuiltInBoard
+from job_boards.wellfound import WellFoundBoard
+from job_boards.ziprecruiter import ZipRecruiterBoard
+from job_boards.welcome_to_the_jungle import WelcomeToTheJungleBoard
+from job_boards.base import JobBoardBase
+# Add LeverBoard and BaseBoard if you have them
+try:
+    from job_boards.lever import LeverBoard
+except ImportError:
+    LeverBoard = None
+try:
+    from job_boards.base_board import BaseBoard
+except ImportError:
+    BaseBoard = None
 
 # Load environment variables
 load_dotenv()
 
-def setup_logging():
-    """Setup logging configuration"""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler('job_application.log'),
-            logging.StreamHandler()
-        ]
-    )
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('job_application.log'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+logger = logging.getLogger(__name__)
 
 def load_config():
-    """Load and process configuration"""
+    """Load configuration from config.json file."""
     config_path = Path("config.json")
     if not config_path.exists():
         raise FileNotFoundError("config.json not found")
-    
     with open(config_path) as f:
         config = json.load(f)
-    
     # Replace environment variables in config
     def replace_env_vars(obj):
         if isinstance(obj, dict):
@@ -58,373 +65,141 @@ def load_config():
             env_var = obj[2:-1]
             return os.getenv(env_var, "")
         return obj
-    
     return replace_env_vars(config)
 
-class JobAutoApply:
-    """Main class for automated job applications with AI support"""
+def setup_webdriver(config):
+    """Set up and configure Chrome WebDriver to use existing profile."""
+    chrome_options = Options()
     
-    def __init__(self, config_file="config.json"):
-        self.config = self._load_config(config_file)
-        self.driver = self._setup_webdriver()
-        self.applications_db = self._load_applications_db()
-        self.applied_job_ids = set(self.applications_db["job_id"]) if not self.applications_db.empty else set()
-        
-        # Initialize job boards
-        self.job_boards = {
-            "indeed": IndeedBoard(self.config, self.driver),
-            "linkedin": LinkedInBoard(self.config, self.driver),
-            "builtin": BuiltInBoard(self.config, self.driver),
-            "wellfound": WellFoundBoard(self.config, self.driver),
-            "ziprecruiter": ZipRecruiterBoard(self.config, self.driver),
-            "welcome_to_the_jungle": WelcomeToTheJungleBoard(self.config, self.driver),
-            "direct_company": DirectCompanyBoard(self.config, self.driver)
-        }
-        
-        # AI API key handling
-        self.ai_api_key = os.getenv("OPENAI_API_KEY")
-        if not self.ai_api_key:
-            logger.warning("OPENAI_API_KEY not set. AI features disabled.")
-        
-        logger.info("JobAutoApply initialized successfully.")
+    # Configure options for using existing Chrome profile
+    user_data_dir = config.get("browser_settings", {}).get("chrome_profile_path")
     
-    def _load_config(self, config_file):
-        """Load configuration from file"""
-        try:
-            with open(config_file, 'r') as f:
-                config = json.load(f)
-            logger.info(f"Configuration loaded from {config_file}")
-            return config
-        except FileNotFoundError:
-            logger.warning(f"Config file {config_file} not found. Creating default configuration.")
-            return self._create_default_config(config_file)
-        except json.JSONDecodeError:
-            logger.error(f"Invalid JSON in {config_file}. Creating default configuration.")
-            return self._create_default_config(f"{config_file}.default")
+    if not user_data_dir:
+        # Default locations for Chrome user data directory
+        if sys.platform == "win32":
+            user_data_dir = os.path.join(os.environ["USERPROFILE"], "AppData", "Local", "Google", "Chrome", "User Data")
+        elif sys.platform == "darwin":  # macOS
+            user_data_dir = os.path.join(os.environ["HOME"], "Library", "Application Support", "Google", "Chrome")
+        else:  # Linux
+            user_data_dir = os.path.join(os.environ["HOME"], ".config", "google-chrome")
     
-    def _create_default_config(self, config_file):
-        """Create default configuration file"""
-        default_config = {
-            "job_search": {
-                "keywords": [
-                    "Software Developer",
-                    "Software Engineer",
-                    "Backend Developer",
-                    "Frontend Developer",
-                    "Full Stack Developer",
-                    "Web Developer",
-                    "Application Developer",
-                    "Cloud Engineer",
-                    "API Developer"
-                ],
-                "location": "Remote",
-                "min_salary": 80000,  # Minimum salary requirement
-                "exclude_keywords": [
-                    "Senior",
-                    "Principal",
-                    "Lead",
-                    "Architect",
-                    "Manager"
-                ]
-            },
-            "credentials": {
-                "indeed": {"email": "", "password": ""},
-                "linkedin": {"email": "", "password": ""},
-                "wellfound": {"email": "", "password": ""},
-                "repvue": {"email": "", "password": ""},
-                "hired": {"email": "", "password": ""}
-            },
-            "enabled_job_boards": [
-                "indeed", "linkedin", "builtin", "wellfound",
-                "repvue", "hired", "lever", "greenhouse"
-            ],
-            "resume_path": "resumes/resume.pdf",
-            "cover_letter_path": "cover_letters/cover_letter.pdf",
-            "use_cover_letter": True,
-            "apply_limit_per_day": 50,
-            "blacklisted_companies": [],
-            "auto_generate_cover_letter": True,
-            "headless": False,
-            "application_delay": {
-                "min_seconds": 3,
-                "max_seconds": 7
-            },
-            "browser_settings": {
-                "use_existing_profile": False,
-                "chrome_profile_path": ""
-            }
-        }
-        
-        with open(config_file, 'w') as f:
-            json.dump(default_config, f, indent=4)
-        logger.info(f"Created default configuration at {config_file}")
-        return default_config
+    logger.info(f"Using Chrome profile from: {user_data_dir}")
     
-    def _setup_webdriver(self):
-        """Set up and configure Chrome WebDriver"""
-        chrome_options = Options()
-        
-        if self.config.get("headless", False):
-            chrome_options.add_argument("--headless")
-            
-        # Use existing Chrome profile
-        if self.config.get("browser_settings", {}).get("use_existing_profile", False):
-            chrome_profile_path = str(Path(self.config["browser_settings"]["chrome_profile_path"]).expanduser().resolve())
-            chrome_options.add_argument(f"user-data-dir={chrome_profile_path}")
-            chrome_options.add_argument("--profile-directory=Default")
-            
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument("--start-maximized")
-        chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-        
+    # Add the user-data-dir option to use existing Chrome profile
+    chrome_options.add_argument(f"user-data-dir={user_data_dir}")
+    chrome_options.add_argument("--profile-directory=Default")  # Use default profile
+    
+    # Prevent "Chrome is being controlled by automated test software" notification
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option("useAutomationExtension", False)
+    
+    # Anti-detection settings
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    
+    # Add additional options
+    if config.get("headless", False):
+        chrome_options.add_argument("--headless")
+    
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--start-maximized")
+    
+    # Custom user agent to avoid detection
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    
+    try:
+        # Create webdriver
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
         driver.implicitly_wait(10)
-        logger.info("WebDriver initialized.")
+        logger.info("WebDriver initialized successfully with existing Chrome profile.")
         return driver
-    
-    def _load_applications_db(self):
-        """Load or create the applications database"""
-        db_path = Path("applications_db.csv")
-        if db_path.exists():
-            return pd.read_csv(db_path)
-        
-        # Create new database with proper columns
-        db = pd.DataFrame(columns=[
-            "job_id", "job_title", "company", "location",
-            "job_board", "application_date", "status", "url",
-            "salary_range", "job_type"  # Added new columns
-        ])
-        db.to_csv(db_path, index=False)
-        logger.info("Created new applications database.")
-        return db
-    
-    def save_cover_letter_as_pdf(self, content, filepath):
-        """Convert cover letter text to PDF format"""
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        
-        # Split content into lines that fit the page width
-        # FPDF uses mm for dimensions, roughly 190mm width available
-        lines = content.split('\n')
-        for line in lines:
-            # Handle long lines by wrapping
-            pdf.multi_cell(0, 10, line)
-        
-        pdf.output(filepath)
-        return filepath
+    except Exception as e:
+        logger.error(f"Error initializing WebDriver: {str(e)}")
+        return None
 
-    def generate_cover_letter(self, job_title, company, job_description=""):
-        """Generate a cover letter dynamically using AI API."""
-        if not self.ai_api_key:
-            logger.warning("AI API key missing. Cannot generate cover letter.")
-            return None
-        
-        try:
-            prompt = (
-                f"Write a professional cover letter for a {job_title} position at {company}. "
-                f"Highlight relevant skills, problem-solving abilities, and teamwork. "
-                f"Keep it concise and enthusiastic. "
-                f"Use keywords from the job description to tailor the cover letter."
-            )
-            
-            if job_description:
-                prompt += f"\n\nJob description: {job_description}"
-            
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.ai_api_key}"
-            }
-            
-            data = {
-                "model": "gpt-3.5-turbo",
-                "messages": [
-                    {"role": "system", "content": "You are a professional cover letter writer."},
-                    {"role": "user", "content": prompt}
-                ],
-                "max_tokens": 500
-            }
-            
-            logger.info(f"Generating cover letter for {company}")
-            
-            response = requests.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json=data,
-                timeout=30
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"API error: {response.status_code} - {response.text}")
-                return None
-            
-            response_data = response.json()
-            if "choices" not in response_data or not response_data["choices"]:
-                logger.error("Invalid API response format")
-                return None
-            
-            cover_letter = response_data["choices"][0]["message"]["content"]
-            return cover_letter
-            
-        except requests.exceptions.Timeout:
-            logger.error("OpenAI API request timed out")
-            return None
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Request error: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Error generating cover letter: {e}")
-            return None
-
-    def apply_to_jobs(self):
-        """Main loop to find and apply to jobs."""
-        applied_today = 0
-        apply_limit = self.config.get("apply_limit_per_day", 50)
-        
-        # Pause for manual login if using existing profile
-        if self.config.get("browser_settings", {}).get("use_existing_profile", False):
-            input("\n[Manual Login] Please log in to the job board in the opened browser window. Press Enter here when you are finished logging in and ready to start applying to jobs...\n")
-        
-        # Login to all enabled job boards
-        for board_name in self.config.get("enabled_job_boards", []):
-            if board_name in self.job_boards:
-                # Skip login if using existing profile
-                if self.config.get("browser_settings", {}).get("use_existing_profile", False):
-                    logger.info(f"Using existing profile for {board_name}, skipping login")
-                    continue
-                if not self.job_boards[board_name].login():
-                    logger.warning(f"Failed to login to {board_name}")
-                    continue
-        
-        # Search and apply to jobs from each board
-        for board_name in self.config.get("enabled_job_boards", []):
-            if board_name not in self.job_boards:
-                continue
-                
-            if applied_today >= apply_limit:
-                break
-                
-            board = self.job_boards[board_name]
-            keywords = self.config["job_search"]["keywords"]
-            location = self.config["job_search"]["location"]
-            
-            # Search for jobs
-            jobs = board.search_jobs(keywords, location)
-            
-            for job in tqdm(jobs, desc=f"Processing {board_name} jobs"):
-                if applied_today >= apply_limit:
-                    break
-                    
-                if job["job_id"] in self.applied_job_ids:
-                    logger.info(f"Already applied to {job['company']} - {job['job_title']}")
-                    continue
-                    
-                if job["company"] in self.config.get("blacklisted_companies", []):
-                    logger.info(f"Skipping blacklisted company: {job['company']}")
-                    continue
-                
-                # Check for excluded keywords in job title
-                if any(keyword.lower() in job["job_title"].lower() 
-                      for keyword in self.config["job_search"]["exclude_keywords"]):
-                    logger.info(f"Skipping senior/lead position: {job['job_title']}")
-                    continue
-                
-                # Generate cover letter if needed
-                if self.config.get("use_cover_letter", True) and self.config.get("auto_generate_cover_letter", True):
-                    if cover_letter := self.generate_cover_letter(job["job_title"], job["company"]):
-                        # Save generated cover letter
-                        cover_letter_dir = Path("cover_letters")
-                        cover_letter_dir.mkdir(exist_ok=True)
-                        temp_cover_letter_path = cover_letter_dir / f"{job['company']}_{datetime.now().strftime('%Y%m%d')}.pdf"
-                        with open(temp_cover_letter_path, "w") as f:
-                            f.write(cover_letter)
-                        logger.info(f"Generated cover letter saved to {temp_cover_letter_path}")
-                
-                # Apply to job
-                if self.apply_to_job(job):
-                    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    new_application = {
-                        "job_id": job["job_id"],
-                        "job_title": job["job_title"],
-                        "company": job["company"],
-                        "location": job["location"],
-                        "job_board": job["job_board"],
-                        "application_date": now,
-                        "status": "applied",
-                        "url": job["url"],
-                        "salary_range": job.get("salary_range", "Not specified"),
-                        "job_type": job.get("job_type", "Not specified")
-                    }
-                    
-                    self.applications_db.loc[len(self.applications_db)] = new_application
-                    self.applications_db.to_csv("applications_db.csv", index=False)
-                    self.applied_job_ids.add(job["job_id"])
-                    applied_today += 1
-                    
-                    # Alert user about successful application
-                    logger.info(f"""
-                    Successfully applied to:
-                    Title: {job['job_title']}
-                    Company: {job['company']}
-                    Location: {job['location']}
-                    Job Board: {job['job_board']}
-                    URL: {job['url']}
-                    Date: {now}
-                    """)
-                    
-                    # Random delay between applications
-                    delay_min = self.config.get("application_delay", {}).get("min_seconds", 3)
-                    delay_max = self.config.get("application_delay", {}).get("max_seconds", 7)
-                    sleep_time = random.uniform(delay_min, delay_max)
-                    logger.info(f"Waiting {sleep_time:.2f} seconds before next application")
-                    time.sleep(sleep_time)
-        
-        logger.info(f"Finished applying to {applied_today} jobs today.")
-
-    def apply_to_job(self, job):
-        try:
-            result = board.apply_to_job(job)
-            if result:
-                logger.info(f"Successfully applied to {job['company']} - {job['job_title']}")
-                return True
-            else:
-                logger.warning(f"Failed to apply to {job['company']} - {job['job_title']}")
-                return False
-        except Exception as e:
-            logger.error(f"Error applying to {job['company']} - {job['job_title']}: {str(e)}")
-            return False
-
-    def quit(self):
-        """Properly close browser driver."""
-        if hasattr(self, 'driver') and self.driver:
-            logger.info("Quitting WebDriver.")
-            self.driver.quit()
-
-def main():
-    """Main function"""
-    parser = argparse.ArgumentParser(description="Automated job application script")
-    parser.add_argument("--board", help="Specific job board to use", default=None)
-    args = parser.parse_args()
-    
-    setup_logging()
-    logger = logging.getLogger(__name__)
+def process_job_board(board_name, board_class, config, driver):
+    """Process a single job board."""
+    logger.info(f"Processing {board_name}")
     
     try:
-        config = load_config()
-        logger.info("Configuration loaded successfully")
+        # Initialize job board with shared driver
+        board = board_class(config, driver)
         
+        # Login to job board
+        login_result = board.login()
+        
+        if login_result is True:
+            logger.info(f"Successfully logged in to {board_name}")
+            
+            # Get job preferences from config
+            job_prefs = config.get('job_preferences', {})
+            keywords = ' '.join(job_prefs.get('titles', ['Software Engineer']))
+            locations = job_prefs.get('locations', ['Remote'])
+            
+            # Search for jobs
+            for location in locations:
+                jobs = board.search_jobs(keywords, location)
+                logger.info(f"Found {len(jobs)} jobs on {board_name} for {location}")
+                
+                # TODO: Filter jobs based on preferences
+                
+                # TODO: Apply to filtered jobs
+                
+        elif login_result == "captcha":
+            logger.warning(f"CAPTCHA detected on {board_name}. Manual intervention may be required.")
+        else:
+            logger.error(f"Failed to login to {board_name}")
+            
+    except Exception as e:
+        logger.error(f"Error processing {board_name}: {str(e)}")
+
+def main():
+    """Main function to run the job scraper."""
+    parser = argparse.ArgumentParser(description="Automated job application script")
+    parser.add_argument("--board", help="Specific job board to use", default=None)
+    parser.add_argument("--profile", help="Chrome profile path", default=None)
+    args = parser.parse_args()
+    
+    # Load configuration
+    config = load_config()
+    if not config:
+        return
+    
+    # If profile path is provided via command line, update config
+    if args.profile:
+        if "browser_settings" not in config:
+            config["browser_settings"] = {}
+        config["browser_settings"]["chrome_profile_path"] = args.profile
+        config["browser_settings"]["use_existing_profile"] = True
+    
+    # Check for required directories
+    for directory in ['resumes', 'cover_letters']:
+        dir_path = Path(directory)
+        if not dir_path.exists():
+            dir_path.mkdir(parents=True)
+            logger.info(f"Created directory: {directory}")
+    
+    # Set up shared Chrome WebDriver
+    driver = setup_webdriver(config)
+    if not driver:
+        logger.error("Failed to initialize WebDriver. Exiting.")
+        return
+    
+    try:
         # Initialize job boards
         boards = {
             "linkedin": LinkedInBoard(config),
-            "welcome_to_the_jungle": WelcomeToTheJungleBoard(config),
+            "indeed": IndeedBoard(config),
+            "builtin": BuiltInBoard(config),
             "wellfound": WellFoundBoard(config),
             "ziprecruiter": ZipRecruiterBoard(config),
-            "builtin": BuiltInBoard(config)
+            "welcome_to_the_jungle": WelcomeToTheJungleBoard(config)
         }
+        if LeverBoard:
+            boards["lever"] = LeverBoard(config)
+        if BaseBoard:
+            boards["base"] = BaseBoard(config)
         
         # Run specific board or all enabled boards
         if args.board:
@@ -433,40 +208,21 @@ def main():
                 return
             boards_to_run = [args.board]
         else:
-            boards_to_run = [name for name, board in boards.items() 
-                           if config["job_boards"][name]["enabled"]]
+            boards_to_run = [name for name, board in boards.items() if config["job_boards"].get(name, {}).get("enabled", False)]
         
+        # Process each job board
         for board_name in boards_to_run:
-            try:
-                logger.info(f"Processing {board_name}")
-                board = boards[board_name]
-                
-                # Login
-                if not board.login():
-                    logger.error(f"Failed to login to {board_name}")
-                    continue
-                
-                # Search and apply
-                jobs = board.search_jobs(
-                    config["job_search"]["keywords"],
-                    config["job_search"]["location"]
-                )
-                
-                for job in jobs:
-                    try:
-                        if board.apply_to_job(job):
-                            logger.info(f"Successfully applied to {job['company']} - {job['job_title']}")
-                        else:
-                            logger.warning(f"Failed to apply to {job['company']} - {job['job_title']}")
-                    except Exception as e:
-                        logger.error(f"Error applying to job: {e}")
-                
-            except Exception as e:
-                logger.error(f"Error processing {board_name}: {e}")
-                continue
-            
+            process_job_board(board_name, boards[board_name], config, driver)
+        
+        logger.info("Job scraping completed")
+        
     except Exception as e:
         logger.error(f"Error in main process: {e}")
+    finally:
+        # Close the shared driver
+        if driver:
+            logger.info("Closing WebDriver.")
+            driver.quit()
 
 if __name__ == "__main__":
     main()
