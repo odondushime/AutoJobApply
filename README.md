@@ -1,11 +1,96 @@
 # AutoJobApply
 
-AutoJobApply is a personal automation tool I built to streamline my job search and application process. It uses browser automation to search for jobs and submit applications across multiple job boards and company career sites.
+A modern web application for automating job applications across multiple job boards.
 
----
+## Features
 
-## My Story
+- Beautiful, responsive UI built with React and Tailwind CSS
+- Automated job search and application process
+- Support for multiple job boards (LinkedIn, Indeed, Glassdoor)
+- Secure credential management
+- Real-time application tracking
+- Customizable cover letter generation
 
-After spending countless hours manually searching for jobs and filling out repetitive application forms, I decided to build a tool that could do the heavy lifting for me. AutoJobApply automates the tedious parts of job hunting—searching, filtering, and applying—so I can focus on preparing for interviews and finding the right fit. It's been a game-changer in my job search journey, helping me apply to more opportunities efficiently and with less stress.
+## Tech Stack
 
-If you're curious about how it works or want to collaborate, feel free to reach out!
+### Frontend
+
+- React with TypeScript
+- Vite for fast development and building
+- Tailwind CSS for styling
+- React Query for data fetching
+- React Router for navigation
+- Headless UI for accessible components
+- Heroicons for beautiful icons
+
+To run:
+cd frontend
+npm install
+npm run dev
+
+### Backend
+
+- FastAPI for high-performance API
+- Pydantic for data validation
+- Selenium for web automation
+- Python for backend logic
+
+To run:
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+ and npm
+- Python 3.8+
+- Chrome browser (for Selenium)
+
+### Installation
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/yourusername/AutoJobApply.git
+cd AutoJobApply
+```
+
+2. Set up the frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+3. Set up the backend:
+
+```bash
+cd ../backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+4. Configure your settings:
+
+- Copy `.env.example` to `.env` in the backend directory
+- Update the environment variables with your credentials
+
+## Usage
+
+1. Open your browser and navigate to `http://localhost:5173`
+2. Set up your profile and credentials in the Settings page
+3. Use the Job Search page to find and apply to jobs
+4. Track your applications in the Dashboard
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
