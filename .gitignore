@@ -43,7 +43,8 @@ logs/
 resume.pdf
 cover_letter.pdf
 resumes/
-cover_letters/
+cover_letters/generated/
+cover_letters/*.pdf
 
 # OS
 .DS_Store
