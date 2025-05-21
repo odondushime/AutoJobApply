@@ -11,15 +11,16 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+import tempfile
 
 logger = logging.getLogger(__name__)
 
 class JobBoardBase(ABC):
     """Base class for job board implementations"""
     
-    def __init__(self, config):
+    def __init__(self, config, driver=None):
         self.config = config
-        self.driver = self._setup_webdriver()
+        self.driver = driver if driver else self._setup_webdriver()
         self.credentials = self._get_credentials()
         self.personal_info = config.get('personal_info', {})
         
@@ -42,11 +43,10 @@ class JobBoardBase(ABC):
         if self.config.get("headless", False):
             chrome_options.add_argument("--headless")
             
-        # Use existing Chrome profile
-        if self.config.get("browser_settings", {}).get("use_existing_profile", False):
-            chrome_profile_path = str(Path(self.config["browser_settings"]["chrome_profile_path"]).expanduser().resolve())
-            chrome_options.add_argument(f"user-data-dir={chrome_profile_path}")
-            chrome_options.add_argument("--profile-directory=Default")
+        # Create a unique temporary directory for Chrome user data
+        temp_dir = tempfile.mkdtemp()
+        chrome_options.add_argument(f"user-data-dir={temp_dir}")
+        chrome_options.add_argument("--profile-directory=Default")
             
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
@@ -63,9 +63,21 @@ class JobBoardBase(ABC):
     def _get_credentials(self):
         """Get credentials for the job board"""
         board_name = self.board_name
-        if board_name not in self.config["job_boards"]:
-            raise ValueError(f"Job board {board_name} not found in config")
-        return self.config["job_boards"][board_name]["credentials"]
+        if board_name not in self.config.get("job_boards", {}):
+            logger.error(f"Job board {board_name} not found in config")
+            return {}
+            
+        board_config = self.config["job_boards"][board_name]
+        if "credentials" not in board_config:
+            logger.error(f"No credentials found for {board_name}")
+            return {}
+            
+        credentials = board_config["credentials"]
+        if not credentials.get("email") or not credentials.get("password"):
+            logger.error(f"Missing email or password for {board_name}")
+            return {}
+            
+        return credentials
     
     @property
     @abstractmethod
@@ -92,6 +104,10 @@ class JobBoardBase(ABC):
         """Close the browser"""
         if hasattr(self, 'driver'):
             self.driver.quit()
+    
+    def _handle_captcha(self):
+        """Stub for CAPTCHA handling. Returns False by default."""
+        return False
     
     def get_credentials(self, platform):
         """Safely get credentials for a specific platform.

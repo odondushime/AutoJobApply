@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import logging
 from dotenv import load_dotenv
-import openai
+from openai import OpenAI
 
 # Load environment variables
 load_dotenv()
@@ -69,7 +69,7 @@ def generate_cover_letter(job_title, company_name, job_description=""):
         """
         
         # Initialize OpenAI client
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = OpenAI()
         
         # Generate cover letter
         response = client.chat.completions.create(

@@ -8,6 +8,8 @@ from datetime import datetime
 import argparse
 from pathlib import Path
 from dotenv import load_dotenv
+import tempfile
+import random
 
 # Selenium imports
 from selenium import webdriver
@@ -15,7 +17,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 
-# Import job board modules
+# Import all job board classes
 from job_boards.linkedin import LinkedInBoard
 from job_boards.indeed import IndeedBoard
 from job_boards.builtin import BuiltInBoard
@@ -36,20 +38,17 @@ except ImportError:
 # Load environment variables
 load_dotenv()
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('job_application.log'),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-
-logger = logging.getLogger(__name__)
+def setup_logging():
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler('job_application.log'),
+            logging.StreamHandler()
+        ]
+    )
 
 def load_config():
-    """Load configuration from config.json file."""
     config_path = Path("config.json")
     if not config_path.exists():
         raise FileNotFoundError("config.json not found")
@@ -68,55 +67,78 @@ def load_config():
     return replace_env_vars(config)
 
 def setup_webdriver(config):
-    """Set up and configure Chrome WebDriver to use existing profile."""
+    """Set up and configure Chrome WebDriver with anti-detection measures"""
     chrome_options = Options()
     
-    # Configure options for using existing Chrome profile
-    user_data_dir = config.get("browser_settings", {}).get("chrome_profile_path")
+    if config.get("headless", False):
+        chrome_options.add_argument("--headless")
+        
+    # Create a unique temporary directory for Chrome user data
+    temp_dir = tempfile.mkdtemp()
+    chrome_options.add_argument(f"user-data-dir={temp_dir}")
+    chrome_options.add_argument("--profile-directory=Default")
     
-    if not user_data_dir:
-        # Default locations for Chrome user data directory
-        if sys.platform == "win32":
-            user_data_dir = os.path.join(os.environ["USERPROFILE"], "AppData", "Local", "Google", "Chrome", "User Data")
-        elif sys.platform == "darwin":  # macOS
-            user_data_dir = os.path.join(os.environ["HOME"], "Library", "Application Support", "Google", "Chrome")
-        else:  # Linux
-            user_data_dir = os.path.join(os.environ["HOME"], ".config", "google-chrome")
+    # Basic options
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--start-maximized")
     
-    logger.info(f"Using Chrome profile from: {user_data_dir}")
-    
-    # Add the user-data-dir option to use existing Chrome profile
-    chrome_options.add_argument(f"user-data-dir={user_data_dir}")
-    chrome_options.add_argument("--profile-directory=Default")  # Use default profile
-    
-    # Prevent "Chrome is being controlled by automated test software" notification
+    # Anti-detection measures
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option("useAutomationExtension", False)
     
-    # Anti-detection settings
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    # Randomize user agent
+    user_agents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+    ]
+    chrome_options.add_argument(f"user-agent={random.choice(user_agents)}")
     
-    # Add additional options
-    if config.get("headless", False):
-        chrome_options.add_argument("--headless")
+    # Additional anti-detection measures
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--disable-popup-blocking")
+    chrome_options.add_argument("--disable-notifications")
+    chrome_options.add_argument("--disable-infobars")
+    chrome_options.add_argument("--disable-web-security")
+    chrome_options.add_argument("--disable-features=IsolateOrigins,site-per-process")
     
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--start-maximized")
+    # Create webdriver with stealth settings
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=chrome_options)
     
-    # Custom user agent to avoid detection
-    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    # Execute CDP commands to prevent detection
+    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+        "source": """
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined
+            });
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3, 4, 5]
+            });
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['en-US', 'en']
+            });
+            window.chrome = {
+                runtime: {}
+            };
+        """
+    })
     
-    try:
-        # Create webdriver
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-        driver.implicitly_wait(10)
-        logger.info("WebDriver initialized successfully with existing Chrome profile.")
-        return driver
-    except Exception as e:
-        logger.error(f"Error initializing WebDriver: {str(e)}")
-        return None
+    # Set window size and position randomly
+    width = random.randint(1050, 1200)
+    height = random.randint(800, 900)
+    x = random.randint(0, 100)
+    y = random.randint(0, 100)
+    driver.set_window_size(width, height)
+    driver.set_window_position(x, y)
+    
+    driver.implicitly_wait(10)
+    return driver
 
 def process_job_board(board_name, board_class, config, driver):
     """Process a single job board."""
@@ -155,73 +177,57 @@ def process_job_board(board_name, board_class, config, driver):
         logger.error(f"Error processing {board_name}: {str(e)}")
 
 def main():
-    """Main function to run the job scraper."""
-    parser = argparse.ArgumentParser(description="Automated job application script")
-    parser.add_argument("--board", help="Specific job board to use", default=None)
-    parser.add_argument("--profile", help="Chrome profile path", default=None)
-    args = parser.parse_args()
-    
-    # Load configuration
-    config = load_config()
-    if not config:
-        return
-    
-    # If profile path is provided via command line, update config
-    if args.profile:
-        if "browser_settings" not in config:
-            config["browser_settings"] = {}
-        config["browser_settings"]["chrome_profile_path"] = args.profile
-        config["browser_settings"]["use_existing_profile"] = True
-    
-    # Check for required directories
-    for directory in ['resumes', 'cover_letters']:
-        dir_path = Path(directory)
-        if not dir_path.exists():
-            dir_path.mkdir(parents=True)
-            logger.info(f"Created directory: {directory}")
-    
-    # Set up shared Chrome WebDriver
-    driver = setup_webdriver(config)
-    if not driver:
-        logger.error("Failed to initialize WebDriver. Exiting.")
-        return
+    setup_logging()
+    logger = logging.getLogger(__name__)
     
     try:
-        # Initialize job boards
-        boards = {
-            "linkedin": LinkedInBoard(config),
-            "indeed": IndeedBoard(config),
-            "builtin": BuiltInBoard(config),
-            "wellfound": WellFoundBoard(config),
-            "ziprecruiter": ZipRecruiterBoard(config),
-            "welcome_to_the_jungle": WelcomeToTheJungleBoard(config)
-        }
-        if LeverBoard:
-            boards["lever"] = LeverBoard(config)
-        if BaseBoard:
-            boards["base"] = BaseBoard(config)
+        # Load configuration
+        config = load_config()
+        logger.info("Configuration loaded successfully")
         
-        # Run specific board or all enabled boards
-        if args.board:
-            if args.board not in boards:
-                logger.error(f"Unknown job board: {args.board}")
-                return
-            boards_to_run = [args.board]
-        else:
-            boards_to_run = [name for name, board in boards.items() if config["job_boards"].get(name, {}).get("enabled", False)]
+        # Set up WebDriver
+        driver = setup_webdriver(config)
+        logger.info("WebDriver initialized successfully")
         
         # Process each job board
-        for board_name in boards_to_run:
-            process_job_board(board_name, boards[board_name], config, driver)
+        for board_name in config["job_boards"]:
+            logger.info(f"Processing {board_name}")
+            
+            # Initialize job board
+            board = initialize_job_board(board_name, driver, config)
+            if not board:
+                logger.error(f"Failed to initialize {board_name}")
+                continue
+            
+            # Login to job board
+            if not board.login():
+                logger.error(f"Failed to login to {board_name}")
+                continue
+            
+            # Get job search parameters from config
+            keywords = config.get("job_search", {}).get("keywords", "software engineer")
+            location = config.get("job_search", {}).get("location", "remote")
+            
+            # Search for jobs
+            jobs = board.search_jobs(keywords, location)
+            logger.info(f"Found {len(jobs)} jobs on {board_name}")
+            
+            # Apply to each job
+            for job in jobs:
+                logger.info(f"Attempting to apply to: {job['company']} - {job['title']}")
+                if board.apply_to_job(job):
+                    logger.info(f"Successfully applied to {job['company']} - {job['title']}")
+                else:
+                    logger.warning(f"Failed to apply to {job['company']} - {job['title']}")
+                time.sleep(random.uniform(2, 4))  # Random delay between applications
         
-        logger.info("Job scraping completed")
+        # Keep the browser open
+        input("Press Enter to close the browser...")
         
     except Exception as e:
-        logger.error(f"Error in main process: {e}")
+        logger.error(f"Error in main process: {str(e)}")
     finally:
-        # Close the shared driver
-        if driver:
-            logger.info("Closing WebDriver.")
+        if 'driver' in locals():
             driver.quit()
 
 if __name__ == "__main__":
