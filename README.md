@@ -1,96 +1,161 @@
 # AutoJobApply
 
-A modern web application for automating job applications across multiple job boards.
+A modern web application that automates job applications across multiple job boards. Built with React, TypeScript, FastAPI, and Selenium.
 
 ## Features
 
-- Beautiful, responsive UI built with React and Tailwind CSS
-- Automated job search and application process
-- Support for multiple job boards (LinkedIn, Indeed, Glassdoor)
-- Secure credential management
-- Real-time application tracking
-- Customizable cover letter generation
+- 🔍 **Job Search**: Search for jobs across multiple job boards with advanced filters
+- 🤖 **Automated Applications**: Apply to jobs with a single click
+- 📊 **Dashboard**: Track your application progress and statistics
+- ⚙️ **Settings Management**: Configure your credentials and documents
+- 🔒 **Secure**: Credentials and sensitive data are stored securely
+- 🌐 **Modern UI**: Beautiful and responsive interface built with React and Tailwind CSS
 
 ## Tech Stack
 
 ### Frontend
 
-- React with TypeScript
-- Vite for fast development and building
-- Tailwind CSS for styling
-- React Query for data fetching
-- React Router for navigation
-- Headless UI for accessible components
-- Heroicons for beautiful icons
-
-To run:
-cd frontend
-npm install
-npm run dev
+- React 18
+- TypeScript
+- Tailwind CSS
+- Vite
+- React Router
+- Axios
 
 ### Backend
 
-- FastAPI for high-performance API
-- Pydantic for data validation
-- Selenium for web automation
-- Python for backend logic
+- FastAPI
+- Python 3.11+
+- Selenium
+- Pydantic
+- SQLite
 
-To run:
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+## Prerequisites
 
-## Getting Started
+- Python 3.11 or higher
+- Node.js 18 or higher
+- Chrome browser
+- ChromeDriver (automatically installed by the application)
 
-### Prerequisites
-
-- Node.js 18+ and npm
-- Python 3.8+
-- Chrome browser (for Selenium)
-
-### Installation
+## Installation
 
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/AutoJobApply.git
+git clone https://github.com/odondushime/AutoJobApply.git
 cd AutoJobApply
 ```
 
-2. Set up the frontend:
+2. Set up the backend:
+
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+3. Set up the frontend:
 
 ```bash
 cd frontend
 npm install
-npm run dev
 ```
 
-3. Set up the backend:
+4. Create a `.env` file in the backend directory:
+
+```env
+LINKEDIN_EMAIL=your_email@example.com
+LINKEDIN_PASSWORD=your_password
+RESUME_PATH=/path/to/your/resume.pdf
+COVER_LETTER_PATH=/path/to/your/cover_letter.pdf
+```
+
+## Running the Application
+
+1. Start the backend server:
 
 ```bash
-cd ../backend
-python -m venv venv
+cd backend
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-4. Configure your settings:
+2. Start the frontend development server:
 
-- Copy `.env.example` to `.env` in the backend directory
-- Update the environment variables with your credentials
+```bash
+cd frontend
+npm run dev
+```
+
+3. Open your browser and navigate to `http://localhost:5173`
 
 ## Usage
 
-1. Open your browser and navigate to `http://localhost:5173`
-2. Set up your profile and credentials in the Settings page
-3. Use the Job Search page to find and apply to jobs
-4. Track your applications in the Dashboard
+1. **Dashboard**
+
+   - View application statistics
+   - Track recent applications
+   - Monitor success rates
+
+2. **Job Search**
+
+   - Enter keywords and location
+   - Filter by job board, date, and more
+   - Save interesting jobs for later
+
+3. **Settings**
+   - Configure job board credentials
+   - Upload resume and cover letter
+   - Set application preferences
+
+## Project Structure
+
+```
+AutoJobApply/
+├── backend/
+│   ├── app/
+│   │   ├── api/
+│   │   ├── core/
+│   │   ├── job_boards/
+│   │   ├── schemas/
+│   │   └── services/
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   ├── pages/
+│   │   └── services/
+│   └── package.json
+└── README.md
+```
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Security
+
+- Credentials are stored securely using environment variables
+- No sensitive data is stored in the database
+- HTTPS is enforced in production
+- Regular security updates and dependency checks
+
+## Support
+
+For support, please open an issue in the GitHub repository or contact the maintainers.
+
+## Acknowledgments
+
+- Selenium WebDriver for browser automation
+- FastAPI for the backend framework
+- React and Tailwind CSS for the frontend
+- All contributors and users of the project
