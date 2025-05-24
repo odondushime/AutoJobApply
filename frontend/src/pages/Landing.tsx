@@ -6,6 +6,7 @@ import {
   CheckCircleIcon,
   XCircleIcon,
 } from "@heroicons/react/24/outline";
+import ResumeTailor from "../components/ResumeTailor";
 
 const Landing = () => {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
@@ -13,6 +14,7 @@ const Landing = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<string[]>([]);
+  const [optimizedResume, setOptimizedResume] = useState<string | null>(null);
 
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -29,7 +31,7 @@ const Landing = () => {
     formData.append("file", file);
 
     try {
-      const response = await fetch("http://localhost:5000/api/analyze-resume", {
+      const response = await fetch("http://localhost:5000/api/resume/analyze", {
         method: "POST",
         body: formData,
       });
@@ -52,6 +54,10 @@ const Landing = () => {
     if (score >= 90) return "text-green-600";
     if (score >= 70) return "text-yellow-600";
     return "text-red-600";
+  };
+
+  const handleOptimizedResume = (resume: string) => {
+    setOptimizedResume(resume);
   };
 
   return (
@@ -174,10 +180,21 @@ const Landing = () => {
           </div>
         </motion.div>
 
+        {atsScore !== null && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
+            className="mt-12"
+          >
+            <ResumeTailor onOptimizedResume={handleOptimizedResume} />
+          </motion.div>
+        )}
+
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
+          transition={{ duration: 0.5, delay: 0.6 }}
           className="mt-12 text-center"
         >
           <div className="mt-6">
