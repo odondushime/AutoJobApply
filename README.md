@@ -1,6 +1,6 @@
 # AutoJobApply
 
-A modern web application that automates job applications across multiple job boards. Built with React, TypeScript, FastAPI, and Selenium.
+A modern web application that automates job applications across multiple job boards and provides ATS resume analysis. Built with React, TypeScript, Flask, and Selenium.
 
 ## Features
 
@@ -10,6 +10,7 @@ A modern web application that automates job applications across multiple job boa
 - ⚙️ **Settings Management**: Configure your credentials and documents
 - 🔒 **Secure**: Credentials and sensitive data are stored securely
 - 🌐 **Modern UI**: Beautiful and responsive interface built with React and Tailwind CSS
+- 📝 **ATS Resume Analysis**: Get instant feedback on your resume's ATS compatibility
 
 ## Tech Stack
 
@@ -24,11 +25,11 @@ A modern web application that automates job applications across multiple job boa
 
 ### Backend
 
-- FastAPI
+- Flask
 - Python 3.11+
 - Selenium
-- Pydantic
-- SQLite
+- PyPDF2
+- python-docx
 
 ## Prerequisites
 
@@ -49,7 +50,6 @@ cd AutoJobApply
 2. Set up the backend:
 
 ```bash
-cd backend
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
@@ -62,7 +62,7 @@ cd frontend
 npm install
 ```
 
-4. Create a `.env` file in the backend directory:
+4. Create a `.env` file in the root directory:
 
 ```env
 LINKEDIN_EMAIL=your_email@example.com
@@ -76,9 +76,8 @@ COVER_LETTER_PATH=/path/to/your/cover_letter.pdf
 1. Start the backend server:
 
 ```bash
-cd backend
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-uvicorn app.main:app --reload
+python app.py
 ```
 
 2. Start the frontend development server:
@@ -92,19 +91,26 @@ npm run dev
 
 ## Usage
 
-1. **Dashboard**
+1. **ATS Resume Analysis**
+
+   - Upload your resume (PDF or DOCX)
+   - Get instant ATS compatibility score
+   - Receive specific recommendations for improvement
+   - Track your resume's performance
+
+2. **Dashboard**
 
    - View application statistics
    - Track recent applications
    - Monitor success rates
 
-2. **Job Search**
+3. **Job Search**
 
    - Enter keywords and location
    - Filter by job board, date, and more
    - Save interesting jobs for later
 
-3. **Settings**
+4. **Settings**
    - Configure job board credentials
    - Upload resume and cover letter
    - Set application preferences
@@ -114,12 +120,7 @@ npm run dev
 ```
 AutoJobApply/
 ├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   ├── core/
-│   │   ├── job_boards/
-│   │   ├── schemas/
-│   │   └── services/
+│   ├── ats_analyzer.py
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
@@ -127,6 +128,7 @@ AutoJobApply/
 │   │   ├── pages/
 │   │   └── services/
 │   └── package.json
+├── app.py
 └── README.md
 ```
 
@@ -156,6 +158,6 @@ For support, please open an issue in the GitHub repository or contact the mainta
 ## Acknowledgments
 
 - Selenium WebDriver for browser automation
-- FastAPI for the backend framework
+- Flask for the backend framework
 - React and Tailwind CSS for the frontend
 - All contributors and users of the project
